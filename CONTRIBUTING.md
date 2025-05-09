@@ -3,6 +3,8 @@
 We welcome all kinds of contributions. _You don't need to be an expert
 in frontend or Python development to help out._
 
+[![Built with Devbox](https://www.jetify.com/img/devbox/shield_moon.svg)](https://www.jetify.com/devbox/docs/contributor-quickstart/)
+
 ## Checklist
 
 Contributions are made through
