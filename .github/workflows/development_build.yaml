@@ -1,0 +1,23 @@
+name: 📦 Build marimo in dev env
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install devbox
+      uses: jetify-com/devbox-install-action@v0.12.0
+
+    - name: Build marimo
+      run: devbox run build
+
+    - name: Build and run dev container task
+      uses: devcontainers/ci@v0.3
+
+
