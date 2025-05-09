@@ -3,7 +3,8 @@
   "packages": [
     "pnpm@10",
     "nodejs@22",
-    "hatch@latest"
+    "hatch@latest",
+    "gnumake@latest"
   ],
   "shell": {
     "init_hook": [
