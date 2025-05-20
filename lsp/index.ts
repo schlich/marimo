@@ -20,7 +20,8 @@ const serverPort: number = Number.parseInt(argv.port) || 3000;
 const languageServers: Record<string, string[]> = {
   copilot: [
     "node",
-    path.join(__dirname, "copilot", "dist", "language-server.js"),
+    require.resolve("@github/copilot-language-server/dist/language-server.js"),
+    "--stdio",
   ],
 };
 
