@@ -1,10 +1,20 @@
 /* Copyright 2024 Marimo. All rights reserved. */
 import { useAtom } from "jotai";
-import { copilotSignedInState, isGitHubCopilotSignedInState } from "./state";
-import { memo, useState } from "react";
-import { getCopilotClient } from "./client";
+import {
+  copilotAuthStatusAtom,
+  copilotUserCodeAtom,
+  copilotAuthErrorAtom,
+  // isGitHubCopilotSignedInState, // Keep if still used for global enable/disable logic elsewhere
+} from "./state";
+import { memo, useEffect, useState } from "react";
+import {
+  initiateSignInLsp,
+  confirmSignInLsp,
+  signOutLsp,
+  getCopilotClient, // Keep if direct client interaction is still needed for non-auth parts
+} from "./client";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { CheckIcon, CopyIcon, Loader2Icon, XIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, Loader2Icon, AlertTriangleIcon, XIcon } from "lucide-react";
 import { ExternalLink } from "@/components/ui/links";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
@@ -13,171 +23,162 @@ import { Logger } from "@/utils/Logger";
 import { useOpenSettingsToTab } from "@/components/app-config/state";
 
 export const CopilotConfig = memo(() => {
-  const [copilotSignedIn, copilotChangeSignIn] = useAtom(
-    isGitHubCopilotSignedInState,
-  );
-  const [step, setStep] = useAtom(copilotSignedInState);
-  const { handleClick: openSettings } = useOpenSettingsToTab();
-  const [localData, setLocalData] = useState<{ url: string; code: string }>();
-  const [loading, setLoading] = useState(false);
+  const [authStatus, setAuthStatus] = useAtom(copilotAuthStatusAtom);
+  const [userCode, setUserCode] = useAtom(copilotUserCodeAtom);
+  const [authError, setAuthError] = useAtom(copilotAuthErrorAtom);
 
-  const trySignIn = async (evt: React.MouseEvent) => {
+  // Used to store verification URI from initiateSignInLsp response
+  const [verificationUri, setVerificationUri] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const { handleClick: openSettings } = useOpenSettingsToTab();
+
+  // Effect to clear userCode and verificationUri when authStatus changes from "signingIn"
+  useEffect(() => {
+    if (authStatus !== "signingIn") {
+      setUserCode(null);
+      setVerificationUri(null);
+    }
+    if (authStatus !== "signInFailed" && authStatus !== "error" && authStatus !== "connectionError") {
+      setAuthError(null);
+    }
+  }, [authStatus, setUserCode, setVerificationUri, setAuthError]);
+
+
+  const handleSignIn = async (evt: React.MouseEvent) => {
     evt.preventDefault();
     setLoading(true);
+    setAuthError(null); // Clear previous errors
     try {
-      const client = getCopilotClient();
-      const { verificationUri, status, userCode } =
-        await client.signInInitiate();
-
-      if (status === "OK" || status === "AlreadySignedIn") {
-        copilotChangeSignIn(true);
-      } else {
-        setStep("signingIn");
-        setLocalData({ url: verificationUri, code: userCode });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const tryFinishSignIn = async (evt: React.MouseEvent) => {
-    evt.preventDefault();
-    if (!localData) {
-      return;
-    }
-    const client = getCopilotClient();
-    const MAX_RETRIES = 3;
-    const RETRY_DELAY_MS = 1000;
-
-    try {
-      setLoading(true);
-      Logger.log("Copilot#tryFinishSignIn: Attempting to confirm sign-in");
-      const { status } = await client.signInConfirm({
-        userCode: localData.code,
-      });
-
-      if (status === "OK" || status === "AlreadySignedIn") {
-        Logger.log("Copilot#tryFinishSignIn: Sign-in confirmed successfully");
-        copilotChangeSignIn(true);
-        setStep("signedIn");
-      } else {
-        Logger.warn(
-          "Copilot#tryFinishSignIn: Sign-in confirmation returned unexpected status",
-          { status },
-        );
-        setStep("signInFailed");
+      // initiateSignInLsp now updates global state atoms for userCode and deviceFlowCommand
+      // It should return the verificationUri and potentially initial status.
+      const result = await initiateSignInLsp();
+      if (result && result.userCode && result.verificationUri) {
+        setVerificationUri(result.verificationUri);
+        // userCode is set via copilotUserCodeAtom by initiateSignInLsp
+        // authStatus is set to "signingIn" by initiateSignInLsp
+      } else if (result && result.error) {
+        // Error state already set by initiateSignInLsp
+        Logger.error("Copilot: Sign-in initiation failed", result.error);
+      } else if (result && result.status === "AlreadySignedIn") {
+        // This case might be handled by didChangeStatus, but if returned directly:
+        setAuthStatus("signedIn");
       }
     } catch (error) {
-      Logger.warn(
-        "Copilot#tryFinishSignIn: Initial sign-in confirmation failed, attempting retries",
-      );
-
-      // Check if it's a connection error
-      if (
-        error instanceof Error &&
-        (error.message.includes("ECONNREFUSED") ||
-          error.message.includes("WebSocket") ||
-          error.message.includes("network"))
-      ) {
-        Logger.error(
-          "Copilot#tryFinishSignIn: Connection error during sign-in",
-          error,
-        );
-        setStep("connectionError");
-        toast({
-          title: "GitHub Copilot Connection Error",
-          description: "Lost connection during sign-in. Please try again.",
-          variant: "danger",
-          action: <Button onClick={trySignIn}>Retry</Button>,
-        });
-        return;
-      }
-
-      // If not a connection error, try seeing if we're already signed in
-      // We try multiple times with a delay between attempts
-      for (let i = 0; i < MAX_RETRIES; i++) {
-        try {
-          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
-          const signedIn = await client.signedIn();
-          if (signedIn) {
-            Logger.log(
-              "Copilot#tryFinishSignIn: Successfully signed in after retry",
-            );
-            copilotChangeSignIn(true);
-            setStep("signedIn");
-            return;
-          }
-        } catch (retryError) {
-          Logger.warn("Copilot#tryFinishSignIn: Retry attempt failed", {
-            attempt: i + 1,
-            maxRetries: MAX_RETRIES,
-          });
-          // Check for connection errors during retry
-          if (
-            retryError instanceof Error &&
-            (retryError.message.includes("ECONNREFUSED") ||
-              retryError.message.includes("WebSocket") ||
-              retryError.message.includes("network"))
-          ) {
-            setStep("connectionError");
-            toast({
-              title: "GitHub Copilot Connection Error",
-              description:
-                "Lost connection during sign-in. Please check settings and try again.",
-              variant: "danger",
-              action: (
-                <Button variant="link" onClick={() => openSettings("ai")}>
-                  Settings
-                </Button>
-              ),
-            });
-            return;
-          }
-        }
-      }
-      Logger.error("Copilot#tryFinishSignIn: All sign-in attempts failed");
-      setStep("signInFailed");
+      Logger.error("Copilot: Sign-in initiation failed", error);
+      // Error state (authStatus, authErrorAtom) should be set by initiateSignInLsp
     } finally {
       setLoading(false);
     }
   };
 
-  const signOut = async (evt: React.MouseEvent) => {
+  const handleConfirmSignIn = async (evt: React.MouseEvent) => {
     evt.preventDefault();
-    const client = getCopilotClient();
-    copilotChangeSignIn(false);
-    setStep("signedOut");
-    await client.signOut();
+    setLoading(true);
+    setAuthError(null);
+    try {
+      await confirmSignInLsp();
+      // Auth status (signedIn, signInFailed) will be updated by `didChangeStatus` notification
+      // from the LSP server, which updates `copilotAuthStatusAtom`.
+      // No need to set authStatus directly here unless confirmSignInLsp returns immediate status.
+    } catch (error) {
+      Logger.error("Copilot: Sign-in confirmation failed", error);
+      // Error state (authStatus, authErrorAtom) should be set by confirmSignInLsp
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignOut = async (evt: React.MouseEvent) => {
+    evt.preventDefault();
+    setLoading(true);
+    setAuthError(null);
+    try {
+      await signOutLsp();
+      // Auth status will be updated to "signedOut" by signOutLsp.
+    } catch (error) {
+      Logger.error("Copilot: Sign-out failed", error);
+      // Error state (authStatus, authErrorAtom) should be set by signOutLsp
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderErrorMessage = () => {
+    if (!authError) {
+      return null;
+    }
+    return (
+      <div className="text-destructive text-sm flex items-center">
+        <AlertTriangleIcon className="h-4 w-4 mr-1" />
+        {authError}
+      </div>
+    );
   };
 
   const renderBody = () => {
-    // If we don't have a step set, infer it from the current state
-    const resolvedStep = step ?? (copilotSignedIn ? "signedIn" : "connecting");
-
-    switch (resolvedStep) {
+    switch (authStatus) {
+      case "uninitialized":
       case "connecting":
-        return <Label className="font-normal flex">Connecting...</Label>;
-      case "signedOut":
         return (
-          <Button onClick={trySignIn} size="xs" variant="link">
-            Sign in to GitHub Copilot
-          </Button>
+          <div className="flex items-center">
+            <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
+            <Label className="font-normal">Connecting to GitHub Copilot...</Label>
+          </div>
         );
-
-      case "signingIn":
+      case "notConnected":
         return (
-          <ol className="ml-4 text-sm list-decimal [&>li]:mt-2">
+          <div className="flex flex-col gap-1">
+            <Label className="font-normal flex items-center">
+              <XIcon className="h-4 w-4 mr-1 text-destructive" />
+              Unable to connect to Copilot Server
+            </Label>
+            {renderErrorMessage()}
+            <div className="text-sm">
+              For troubleshooting, see the{" "}
+              <ExternalLink href="https://docs.marimo.io/getting_started/index.html#github-copilot">
+                docs
+              </ExternalLink>
+              . Or{" "}
+              <Button onClick={() => openSettings("ai")} size="xs" variant="link" className="p-0">
+                check settings
+              </Button>.
+            </div>
+          </div>
+        );
+      case "signedOut":
+      case "error": // Generic error, allow retry
+        return (
+          <>
+            {renderErrorMessage()}
+            <Button onClick={handleSignIn} size="xs" variant="link" disabled={loading}>
+              {loading && <Loader2Icon className="h-3 w-3 mr-1 animate-spin" />}
+              Sign in to GitHub Copilot
+            </Button>
+          </>
+        );
+      case "signingIn":
+        if (!userCode || !verificationUri) {
+          // This should ideally not happen if status is signingIn
+          return (
+            <div className="flex items-center">
+               <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
+              <Label className="font-normal">Preparing sign-in...</Label>
+            </div>
+          );
+        }
+        return (
+          <ol className="ml-4 text-sm list-decimal [&>li]:mt-2 space-y-2">
             <li>
               <div className="flex items-center">
                 Copy this code:
-                <strong className="ml-2">{localData?.code}</strong>
+                <strong className="ml-2 mr-1 font-mono">{userCode}</strong>
                 <CopyIcon
-                  className="ml-2 cursor-pointer opacity-60 hover:opacity-100 h-3 w-3"
+                  className="cursor-pointer opacity-60 hover:opacity-100 h-3.5 w-3.5"
                   onClick={async () => {
-                    if (!localData) {
+                    if (!userCode) {
                       return;
                     }
-                    await copyToClipboard(localData.code);
+                    await copyToClipboard(userCode);
                     toast({
                       description: "Copied to clipboard",
                     });
@@ -211,30 +212,29 @@ export const CopilotConfig = memo(() => {
       case "signInFailed":
         return (
           <div className="flex flex-col gap-1">
+            {renderErrorMessage()}
             <div className="text-destructive text-sm">
-              Sign in failed. Please try again.
+              Sign-in failed. Please try again.
             </div>
-            {loading ? (
-              <Loader2Icon className="h-3 w-3 mr-1 animate-spin" />
-            ) : (
-              <Button onClick={trySignIn} size="xs" variant="link">
-                Connect to GitHub Copilot
-              </Button>
-            )}
+            <Button onClick={handleSignIn} size="xs" variant="link" disabled={loading}>
+              {loading && <Loader2Icon className="h-3 w-3 mr-1 animate-spin" />}
+              Retry Sign In
+            </Button>
           </div>
         );
 
       case "signedIn":
         return (
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-2">
             <Label className="font-normal flex items-center">
-              <div className="inline-flex items-center justify-center bg-[var(--grass-7)] rounded-full p-1 mr-2">
+              <div className="inline-flex items-center justify-center bg-[var(--grass-7)] rounded-full p-0.5 mr-1.5">
                 <CheckIcon className="h-3 w-3 text-white" />
               </div>
-              Connected
+              GitHub Copilot Connected
             </Label>
-            <Button onClick={signOut} size="xs" variant="text">
-              Disconnect
+            <Button onClick={handleSignOut} size="xs" variant="secondary" disabled={loading}>
+              {loading && <Loader2Icon className="h-3 w-3 mr-1 animate-spin" />}
+              Sign Out
             </Button>
           </div>
         );
@@ -252,26 +252,24 @@ export const CopilotConfig = memo(() => {
             </Button>
           </div>
         );
-
-      case "notConnected":
+      default:
+        // Should not happen if all statuses are handled
+        Logger.warn("Copilot: Unhandled auth status", authStatus);
         return (
-          <div className="flex flex-col gap-1">
-            <Label className="font-normal flex">
-              <XIcon className="h-4 w-4 mr-1" />
-              Unable to connect
-            </Label>
-            <div className="text-sm">
-              For troubleshooting, see the{" "}
-              <ExternalLink href="https://docs.marimo.io/getting_started/index.html#github-copilot">
-                docs
-              </ExternalLink>
-              .
-            </div>
+          <div className="text-destructive text-sm">
+            Unknown Copilot status. Please try refreshing.
           </div>
         );
     }
   };
 
-  return renderBody();
+  // This component now primarily focuses on the auth flow UI.
+  // The actual enabling/disabling of Copilot via user config (e.g. settings page)
+  // would gate whether this component is even rendered or active.
+  return (
+    <div className="flex flex-col gap-y-1">
+      {renderBody()}
+    </div>
+  );
 });
 CopilotConfig.displayName = "CopilotConfig";
