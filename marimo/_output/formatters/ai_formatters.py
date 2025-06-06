@@ -18,7 +18,7 @@ class GoogleAiFormatter(FormatterFactory):
 
     def register(self) -> None:
         try:
-            import google.generativeai as genai  # type: ignore
+            from google import genai  # type: ignore
         except (ImportError, ModuleNotFoundError):
             return
 
@@ -28,15 +28,14 @@ class GoogleAiFormatter(FormatterFactory):
         def _show_response(
             response: genai.types.GenerateContentResponse,
         ) -> tuple[KnownMimeType, str]:
-            if hasattr(response, "_iterator") and response._iterator is None:
-                return md.md(response.text)._mime_()
-
-            # Streaming response
-            total_text = ""
-            for chunk in response:
-                total_text += chunk.text
-                output.replace(md.md(_ensure_closing_code_fence(total_text)))
-            return md.md(total_text)._mime_()
+            # A GenerateContentResponse object itself is not iterable.
+            # If it's from a stream, it's a single chunk.
+            # If it's from a non-streamed call, it's the full response.
+            # In either case, response.text should contain the relevant text.
+            # The `marimo._ai.llm._impl.google` class calls generate_content
+            # with stream=False, so this formatter will receive a complete
+            # response object.
+            return md.md(response.text or "")._mime_()
 
 
 class OpenAIFormatter(FormatterFactory):

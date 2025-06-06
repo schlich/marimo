@@ -304,22 +304,20 @@ class google(ChatModel):
     def __call__(
         self, messages: list[ChatMessage], config: ChatModelConfig
     ) -> object:
-        DependencyManager.google_ai.require(
-            "chat model requires google. `pip install google-generativeai`"
+        DependencyManager.google_genai.require(
+            "chat model requires google. `pip install google-genai`"
         )
-        import google.generativeai as genai  # type: ignore[import-not-found]
+        from google import genai  # type: ignore[import-not-found]
 
         genai.configure(api_key=self._require_api_key)
         client = genai.GenerativeModel(
             model_name=self.model,
             system_instruction=self.system_message,
-            generation_config=genai.GenerationConfig(
+            generation_config=genai.types.GenerationConfig(
                 max_output_tokens=config.max_tokens,
                 temperature=config.temperature,
                 top_p=config.top_p,
                 top_k=config.top_k,
-                frequency_penalty=config.frequency_penalty,
-                presence_penalty=config.presence_penalty,
             ),
         )
 

@@ -37,12 +37,7 @@ if TYPE_CHECKING:
     from anthropic.types import (  # type: ignore[import-not-found]
         RawMessageStreamEvent,
     )
-    from google.generativeai import (  # type: ignore[import-not-found]
-        GenerativeModel,
-    )
-    from google.generativeai.types import (  # type: ignore[import-not-found]
-        GenerateContentResponse,
-    )
+    from google import genai as google_genai_typechecking  # type: ignore[import-not-found]
 
     # Used for Bedrock, unified interface for all models
     from litellm import (  # type: ignore[attr-defined]
@@ -470,24 +465,27 @@ class AnthropicProvider(
 
 
 class GoogleProvider(
-    CompletionProvider["GenerateContentResponse", "GenerateContentResponse"]
+    CompletionProvider[
+        "google_genai_typechecking.types.GenerateContentResponse",
+        "google_genai_typechecking.types.GenerateContentResponse",
+    ]
 ):
     def get_client(
         self, config: AnyProviderConfig, model: str, system_prompt: str
-    ) -> GenerativeModel:
+    ) -> google_genai_typechecking.GenerativeModel:
         try:
-            import google.generativeai as genai
+            from google import genai
         except ImportError:
-            DependencyManager.google_ai.require(
+            DependencyManager.google_genai.require(
                 why="for AI assistance with Google AI"
             )
-            import google.generativeai as genai  # type: ignore
+            from google import genai  # type: ignore
 
         genai.configure(api_key=config.api_key)
         return genai.GenerativeModel(
             model_name=model,
             system_instruction=system_prompt,
-            generation_config=genai.GenerationConfig(
+            generation_config=genai.types.GenerationConfig(
                 max_output_tokens=DEFAULT_MAX_TOKENS,
                 temperature=0,
             ),
@@ -498,18 +496,27 @@ class GoogleProvider(
         messages: list[ChatMessage],
         system_prompt: str,
         max_tokens: int,
-    ) -> GenerateContentResponse:
+    ) -> google_genai_typechecking.types.GenerateContentResponse:
+        # Ensure genai is imported for runtime use
+        try:
+            from google import genai
+        except ImportError:
+            DependencyManager.google_genai.require(
+                why="for AI assistance with Google AI"
+            )
+            from google import genai # type: ignore
+
         client = self.get_client(self.config, self.model, system_prompt)
         return client.generate_content(
             contents=convert_to_google_messages(messages),
             stream=True,
-            generation_config={
-                "max_output_tokens": max_tokens,
-            },
+            generation_config=genai.types.GenerationConfig(
+                max_output_tokens=max_tokens,
+            ),
         )
 
     def extract_content(
-        self, response: GenerateContentResponse
+        self, response: google_genai_typechecking.types.GenerateContentResponse
     ) -> ExtractedContent | None:
         if hasattr(response, "text"):
             return (response.text, "text")

@@ -78,7 +78,7 @@ def mock_anthropic_client():
 @pytest.fixture
 def mock_google_client():
     """Fixture for mocking the Google client."""
-    with patch("google.generativeai.GenerativeModel") as mock_google_class:
+    with patch("google.genai.GenerativeModel") as mock_google_class:
         mock_client = MagicMock()
         mock_google_class.return_value = mock_client
 
@@ -203,7 +203,7 @@ def test_anthropic_require() -> None:
 
 
 @pytest.mark.skipif(
-    DependencyManager.google_ai.has(), reason="Google AI is installed"
+    DependencyManager.google_genai.has(), reason="Google AI is installed"
 )
 def test_google_require() -> None:
     """Test that google.require raises ModuleNotFoundError."""
@@ -669,7 +669,7 @@ class TestGroq:
 
 
 @pytest.mark.skipif(
-    not DependencyManager.google_ai.has(), reason="Google AI is not installed"
+    not DependencyManager.google_genai.has(), reason="Google AI is not installed"
 )
 class TestGoogle:
     def test_init(self) -> None:
@@ -689,8 +689,8 @@ class TestGoogle:
         assert model.api_key == "test-key"
 
     @patch.object(google, "_require_api_key")
-    @patch("google.generativeai.configure")
-    @patch("google.generativeai.GenerativeModel")
+    @patch("google.genai.configure")
+    @patch("google.genai.GenerativeModel")
     def test_call(
         self,
         mock_generative_model: MagicMock,
@@ -714,8 +714,7 @@ class TestGoogle:
                 temperature=0.7,
                 top_p=0.9,
                 top_k=10,
-                frequency_penalty=0.5,
-                presence_penalty=0.5,
+                # frequency_penalty and presence_penalty are no longer used
             )
 
             result = model(messages, config)
@@ -730,8 +729,8 @@ class TestGoogle:
         assert generation_config.temperature == 0.7
         assert generation_config.top_p == 0.9
         assert generation_config.top_k == 10
-        assert generation_config.frequency_penalty == 0.5
-        assert generation_config.presence_penalty == 0.5
+        assert not hasattr(generation_config, "frequency_penalty")
+        assert not hasattr(generation_config, "presence_penalty")
 
         mock_client.generate_content.assert_called_once()
 
