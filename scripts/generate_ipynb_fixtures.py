@@ -22,7 +22,6 @@ Output notebooks are written to `tests/_convert/ipynb_data/`.
 """
 
 from __future__ import annotations
-from io import FileIO
 from pathlib import Path
 
 import nbformat.v4.nbbase as nb
@@ -71,6 +70,89 @@ for i_1 in range(X_1.shape[0]):
     for j in nearest_partition[i_1, :K + 1]:
         plt.plot(*zip(X_1[j], X_1[i_1]), color='black')\
 """,
+        ],
+    )
+
+    create_notebook_fixture(
+        "duplicate_definitions_and_aug_assign",
+        [
+            "x = 1",
+            "x",
+            "x += 1",
+            "x",
+        ],
+    )
+
+    create_notebook_fixture(
+        "duplicate_definitions_read_before_write",
+        [
+            "x = 1",
+            "x",
+            "x; x = 2; x",
+            "x",
+        ],
+    )
+
+    create_notebook_fixture(
+        "duplicate_definitions_syntax_error",
+        [
+            "x ( b 2 d & !",
+            "x",
+        ],
+    )
+
+    create_notebook_fixture(
+        "cell_metadata",
+        [
+            nb.new_code_cell(
+                "print('Hello')", metadata={"tags": ["tag1", "tag2"]}
+            ),
+            nb.new_code_cell("print('World')", metadata={}),
+            nb.new_code_cell(
+                "print('Cell 1')",
+                metadata={"tags": ["important", "data-processing"]},
+            ),
+            nb.new_code_cell("print('Cell 2')", metadata={"tags": []}),
+            nb.new_code_cell(
+                "print('Cell 3')",
+                metadata={"tags": ["visualization"], "collapsed": True},
+            ),
+            nb.new_code_cell(
+                "print('Complex metadata')",
+                metadata={
+                    "tags": ["tag1", "tag2"],
+                    "collapsed": True,
+                    "scrolled": False,
+                    "custom": {"key": "value"},
+                },
+            ),
+            nb.new_code_cell(
+                "print('hidden cell')",
+                metadata={
+                    "tags": ["hide-cell"],
+                },
+            ),
+            nb.new_code_cell(
+                "print('hidden cell, with other tags')",
+                metadata={
+                    "tags": ["hide-cell", "remove-print"],
+                },
+            ),
+        ],
+    )
+
+    create_notebook_fixture(
+        "hides_markdown_cells",
+        [
+            nb.new_markdown_cell("A markdown cell."),
+            nb.new_markdown_cell(
+                "A markdown cell with tags: ['blah'].",
+                metadata={"tags": ["blah"]},
+            ),
+            nb.new_markdown_cell(
+                "A markdown cell with tags: ['blah', 'hide-cell'].",
+                metadata={"tags": ["blah", "hide-cell"]},
+            ),
         ],
     )
 
