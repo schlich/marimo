@@ -166,12 +166,10 @@ force-include = { "build_hook.py" = "build_hook.py" }
 dependencies = ["uv>=0.4.17"]
 
 [tool.hatch.envs.default]
-features = ["dev"]
 python = "3.12"
 installer = "uv"
 dependencies = [
-    "uv>=0.4.17", # so we can bump the version used by hatch
-    # Typo checking
+    "uv>=0.4.17",
     "typos~=1.23.6",
 ]
 
