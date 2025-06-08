@@ -165,6 +165,9 @@ force-include = { "build_hook.py" = "build_hook.py" }
 [tool.hatch.envs.hatch-uv]
 dependencies = ["uv>=0.4.17"]
 
+[tool.hatch.env]
+require = ["hatch-uvenv"]
+
 [tool.hatch.envs.default]
 python = "3.12"
 installer = "uv"
