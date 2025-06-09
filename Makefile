@@ -72,7 +72,7 @@ test: fe-test py-test e2e
 
 .PHONY: check
 # 🧹 Run all checks
-check: fe-check py-check
+check: typos fe-check py-check
 
 .PHONY: fe-check
 # 🧹 Check frontend (lint, typecheck)
@@ -119,7 +119,7 @@ typos:
 # 🧪 Test python
 py-test:
 	@command -v hatch >/dev/null 2>&1 || { echo "hatch is required. See https://hatch.pypa.io/dev/install/"; exit 1; }
-	hatch run typos && hatch run +py=3.12 test-optional:test $(ARGS)
+	hatch run +py=3.12 test-optional:test
 
 .PHONY: py-snapshots
 # 📸 Update snapshots
