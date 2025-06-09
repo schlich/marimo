@@ -214,6 +214,7 @@ extra-dependencies = [
     "pytest-timeout~=2.3.1",
     "pytest-codecov~=0.6.1",
     "pytest-asyncio~=0.26.0",
+    "openai>=0.5.33"
 ]
 
 [[tool.hatch.envs.hatch-test.matrix]]

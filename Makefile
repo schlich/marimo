@@ -119,12 +119,12 @@ typos:
 # 🧪 Test python
 py-test:
 	@command -v hatch >/dev/null 2>&1 || { echo "hatch is required. See https://hatch.pypa.io/dev/install/"; exit 1; }
-	hatch run +py=3.12 test-optional:test
+	hatch test -i py=3.12
 
 .PHONY: py-snapshots
 # 📸 Update snapshots
 py-snapshots:
-	hatch run +py=3.12 test:test \
+	hatch test py=3.12 \
 		tests/_server/templates/test_templates.py \
 		tests/_server/api/endpoints/test_export.py \
 		tests/test_api.py
