@@ -140,9 +140,6 @@ docs = [
     "pymdown-extensions>=10.7",
 ]
 
-[tool.hatch]
-installer = "uv"
-
 [tool.hatch.build.hooks.custom]
 path = "build_hook.py"
 
@@ -161,19 +158,10 @@ artifacts = ["marimo/_static/", "marimo/_lsp/", "third_party.txt", "third_party_
 exclude = ["marimo/_smoke_tests"]
 force-include = { "build_hook.py" = "build_hook.py" }
 
-# Override the default uv version to use the latest version
-[tool.hatch.envs.hatch-uv]
-dependencies = ["uv>=0.4.17"]
-
-[tool.hatch.env]
-requires = ["hatch-uvenv"]
-
 [tool.hatch.envs.default]
-type = "uvenv"
 python = "3.12"
 installer = "uv"
 dependencies = [
-    "uv>=0.4.17",
     "typos~=1.23.6",
 ]
 
