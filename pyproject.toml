@@ -101,7 +101,6 @@ lsp = ["python-lsp-server>=1.10.0", "python-lsp-ruff>=2.0.0"]
 
 [dependency-groups]
 dev = [
-    "click>=8.0,<9",
     "black~=23.12.1",
     # For tracing debugging
     "opentelemetry-api~=1.26.0",
@@ -130,7 +129,6 @@ docs = [
     "pillow>=10.2.0",                                   # for social cards
     "cairosvg>=2.7.1",                                  # for social cards
     "mdx-include>=1.4.2",
-    "pymdown-extensions>=10.7",
 ]
 
 [tool.hatch.build.hooks.custom]
@@ -168,6 +166,20 @@ dependencies = ["typos~=1.23.6"]
 
 [tool.hatch.envs.default.scripts]
 lint-unsafe = "ruff check --fix --unsafe-fixes"
+pycheck = [
+    "hatch run typos -w",
+    "sh ./scripts/pycopyright.sh",
+    "hatch run lint:check .",
+    "hatch run lint:format .",
+    "hatch run typecheck:check"
+]
+
+[tool.hatch.envs.lint]
+installer = "uv"
+dependencies = ["ruff~=0.9.1"] # From dev group
+[tool.hatch.envs.lint.scripts]
+check = "ruff check --fix {args}"
+format = "ruff format {args}"
 
 [tool.hatch.envs.typecheck]
 python = "3.12"
@@ -204,7 +216,23 @@ dependencies = [
 check = "mypy marimo --exclude=marimo/_tutorials/"
 tutorials = "mypy marimo/_tutorials"
 
+[tool.hatch.envs.test-lsp]
+installer = "uv"
+[tool.hatch.envs.test-lsp.scripts]
+run = """
+if ! node marimo/_lsp/index.cjs --help > /dev/null 2>&1; then
+    echo "LSP binary failed to start"
+    echo "Contents of marimo/_lsp:"
+    ls -R marimo/_lsp || echo "ls command failed or marimo/_lsp not found"
+    echo "Contents of lsp/dist:"
+    ls -R lsp/dist || echo "ls command failed or lsp/dist not found"
+    exit 1
+fi
+echo "LSP binary started successfully"
+"""
+
 [tool.hatch.envs.hatch-test]
+installer = "uv"
 extra-dependencies = [
     "hypothesis~=6.102.1",
     # For server testing
@@ -237,13 +265,6 @@ test-narwhals = """
 [tool.hatch.envs.test-optional]
 template = "hatch-test"
 extra-dependencies = [
-    "hypothesis~=6.102.1",
-    "httpx~=0.27.0",
-    "matplotlib~=3.9.2",
-    "pytest~=8.3.4",
-    "pytest-timeout~=2.3.1",
-    "pytest-codecov~=0.6.1",
-    "pytest-asyncio~=0.26.0",
     "python-lsp-server>=1.10.0",
     # For testing mo.ui.chart, table, ...
     "vl-convert-python",
@@ -287,6 +308,7 @@ extra-dependencies = [
 python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
 [tool.hatch.envs.docs]
+installer = "uv"
 features = ["docs"]
 dependencies = ["marimo_docs @ file://docs"]
 
