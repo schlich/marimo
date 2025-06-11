@@ -24,7 +24,6 @@ import { useAsyncData } from "@/hooks/useAsyncData";
 import {
   AddDataframeChart,
   renderChart,
-  renderChartMaxRowsWarning,
   renderPreviewError,
   renderStats,
 } from "@/components/datasources/column-preview";
@@ -43,6 +42,7 @@ interface ColumnExplorerPanelProps {
   fieldTypes: FieldTypesWithExternalType | undefined | null;
   totalRows: number | "too_many";
   totalColumns: number;
+  tableId: string;
 }
 
 export const ColumnExplorerPanel = ({
@@ -50,7 +50,9 @@ export const ColumnExplorerPanel = ({
   fieldTypes,
   totalRows,
   totalColumns,
+  tableId,
 }: ColumnExplorerPanelProps) => {
+  const [searchValue, setSearchValue] = useState("");
   const columns = fieldTypes?.filter(([columnName]) => {
     if (
       columnName === SELECT_COLUMN_ID ||
@@ -60,6 +62,10 @@ export const ColumnExplorerPanel = ({
       return false;
     }
     return true;
+  });
+
+  const filteredColumns = columns?.filter(([columnName]) => {
+    return columnName.toLowerCase().includes(searchValue.toLowerCase());
   });
 
   return (
@@ -72,14 +78,19 @@ export const ColumnExplorerPanel = ({
           className="h-3 w-3 ml-1 mt-0.5"
         />
       </span>
-      <Command className="h-5/6">
-        <CommandInput placeholder="Search columns..." />
+      <Command className="h-5/6" shouldFilter={false}>
+        <CommandInput
+          placeholder="Search columns..."
+          value={searchValue}
+          onValueChange={(value) => setSearchValue(value)}
+        />
         <CommandList className="max-h-full">
           <CommandEmpty>No results.</CommandEmpty>
-          {columns?.map(([columnName, [dataType, externalType]]) => {
+          {filteredColumns?.map(([columnName, [dataType, externalType]]) => {
             return (
               <ColumnItem
-                key={columnName}
+                // Tables may have the same column names, hence we use tableId to make it unique
+                key={`${tableId}-${columnName}`}
                 columnName={columnName}
                 dataType={dataType}
                 externalType={externalType}
@@ -112,27 +123,27 @@ const ColumnItem = ({
 
   return (
     <>
-      <CommandItem key={columnName} onSelect={() => setIsExpanded(!isExpanded)}>
-        <div className="flex flex-row items-center gap-1.5 group w-full">
-          <ColumnName columnName={columnText} dataType={dataType} />
-          <div className="ml-auto">
-            <Tooltip content="Copy column name" delayDuration={400}>
-              <Button
-                variant="text"
-                size="icon"
-                className="group-hover:opacity-100 opacity-0 hover:bg-muted text-muted-foreground hover:text-foreground"
-              >
-                <CopyClipboardIcon
-                  tooltip={false}
-                  value={columnName}
-                  className="h-3 w-3"
-                />
-              </Button>
-            </Tooltip>
-            <span className="text-xs text-muted-foreground">
-              {externalType}
-            </span>
-          </div>
+      <CommandItem
+        key={columnName}
+        onSelect={() => setIsExpanded(!isExpanded)}
+        className="flex flex-row items-center gap-1.5 group w-full cursor-pointer"
+      >
+        <ColumnName columnName={columnText} dataType={dataType} />
+        <div className="ml-auto">
+          <Tooltip content="Copy column name" delayDuration={400}>
+            <Button
+              variant="text"
+              size="icon"
+              className="group-hover:opacity-100 opacity-0 hover:bg-muted text-muted-foreground hover:text-foreground"
+            >
+              <CopyClipboardIcon
+                tooltip={false}
+                value={columnName}
+                className="h-3 w-3"
+              />
+            </Button>
+          </Tooltip>
+          <span className="text-xs text-muted-foreground">{externalType}</span>
         </div>
       </CommandItem>
       {isExpanded && (
@@ -179,7 +190,6 @@ const ColumnPreview = ({
   const {
     chart_spec,
     chart_code,
-    chart_max_rows_errors,
     error: previewError,
     missing_packages,
     stats,
@@ -196,14 +206,10 @@ const ColumnPreview = ({
     <AddDataframeChart chartCode={chart_code} />
   );
 
-  const chartMaxRowsWarning =
-    chart_max_rows_errors && renderChartMaxRowsWarning();
-
   return (
     <ColumnPreviewContainer className="px-2 py-1">
       {errorState}
       {addDataframeChart}
-      {chartMaxRowsWarning}
       {chart}
       {previewStats}
     </ColumnPreviewContainer>
