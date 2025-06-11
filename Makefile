@@ -108,7 +108,7 @@ fe-codegen:
 .PHONY: py-check
 # 🔍 Typecheck, lint, format python
 py-check:
-	./scripts/pycheck.sh
+	hatch run default:pycheck
 
 .PHONY: typos
 # 🔍 Check for typos

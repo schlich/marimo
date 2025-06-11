@@ -20,4 +20,4 @@ jobs:
           cache: true
       - run: pixi run make check-prereqs
       - run: pixi run make fe
-      - run: pixi run make py
+      - run: pixi run hatch env create default

@@ -94,7 +94,6 @@ export type CalculateTopKRows = <T>(req: {
 
 export type PreviewColumn = (opts: { column: string }) => Promise<{
   chart_spec: string | null;
-  chart_max_rows_errors: boolean;
   chart_code: string | null;
   error: string | null;
   missing_packages: string[] | null;
@@ -283,7 +282,6 @@ export const DataTablePlugin = createPlugin<S>("marimo-table")
     preview_column: rpc.input(z.object({ column: z.string() })).output(
       z.object({
         chart_spec: z.string().nullable(),
-        chart_max_rows_errors: z.boolean(),
         chart_code: z.string().nullable(),
         error: z.string().nullable(),
         missing_packages: z.array(z.string()).nullable(),
@@ -409,13 +407,8 @@ export const LoadingDataTableComponent = memo(
 
     // If pageSize changes, reset pagination state
     useEffect(() => {
-      if (paginationState.pageSize !== props.pageSize) {
-        setPaginationState({
-          pageIndex: 0,
-          pageSize: props.pageSize,
-        });
-      }
-    }, [props.pageSize, paginationState.pageSize]);
+      setPaginationState({ pageIndex: 0, pageSize: props.pageSize });
+    }, [props.pageSize]);
 
     // Data loading
     const { data, loading, error } = useAsyncData<{
@@ -433,6 +426,8 @@ export const LoadingDataTableComponent = memo(
       let totalRows = props.totalRows;
       let cellStyles = props.cellStyles;
 
+      const pageSizeChanged = paginationState.pageSize !== props.pageSize;
+
       // If it is just the first page and no search query,
       // we can show the initial page.
       const canShowInitialPage =
@@ -440,7 +435,8 @@ export const LoadingDataTableComponent = memo(
         paginationState.pageIndex === 0 &&
         filters.length === 0 &&
         sorting.length === 0 &&
-        !props.lazy;
+        !props.lazy &&
+        !pageSizeChanged;
 
       if (sorting.length > 1) {
         Logger.warn("Multiple sort columns are not supported");
@@ -833,6 +829,7 @@ const DataTableComponent = ({
             fieldTypes={memoizedUnclampedFieldTypes}
             totalRows={totalRows}
             totalColumns={totalColumns}
+            tableId={id}
           />
         </ContextAwarePanelItem>
       )}
