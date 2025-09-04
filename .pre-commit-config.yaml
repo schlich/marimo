@@ -49,3 +49,13 @@ repos:
           (?x)^(
             docs/_static/.*|
           )$
+
+  - repo: local
+    hooks:
+      - id: pixi-lock
+        name: pixi-lock
+        description: "Ensure pixi.lock is up-to-date"
+        language: system
+        entry: pixi lock
+        files: ^pyproject\.toml$
+        pass_filenames: false
