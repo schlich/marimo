@@ -59,3 +59,6 @@ repos:
         entry: pixi lock
         files: ^pyproject\.toml$
         pass_filenames: false
+
+ci:
+  skip: [pixi-lock]
